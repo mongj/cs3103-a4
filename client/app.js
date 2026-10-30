@@ -1,14 +1,7 @@
 /*
- * Working but deliberately naive LiveRecall browser starter.
- *
- * Provided mechanical behavior:
- *   - opens a WebSocket
- *   - sends CLIENT_HELLO
- *   - visibly appends every received CAPTION_UPDATE
- *   - displays whether an update is provisional/final
+ * LiveRecall browser client.
  *
  * Graded TODOs:
- *   - replace revisions rather than appending duplicates
  *   - maintain >=60 s of finalized local state
  *   - implement 30 s default recall + 15/30/60 s views
  *   - automatic reconnect + correct resume state
@@ -20,6 +13,9 @@ const WS_URL = "ws://127.0.0.1:8765";
 const statusEl = document.getElementById("status");
 const liveEl = document.getElementById("live");
 const recallEl = document.getElementById("recall");
+
+// segment -> {revision, el}: one on-screen line per segment.
+const lines = new Map();
 
 let ws;
 
@@ -33,12 +29,16 @@ function numericClientId() {
   return Number(value);
 }
 
-function appendNaively(msg) {
-  const row = document.createElement("div");
-  row.className = "naive-line";
-  const state = msg.final ? "FINAL" : "PROVISIONAL";
-  row.textContent = `[${state}] segment ${msg.segment} rev ${msg.revision}: ${msg.text}`;
-  liveEl.appendChild(row);
+function showCaption(msg) {
+  let line = lines.get(msg.segment);
+  if (line && msg.revision <= line.revision) return;  // never regress a segment
+  if (!line) {
+    line = { el: liveEl.appendChild(document.createElement("div")) };
+    lines.set(msg.segment, line);
+  }
+  line.revision = msg.revision;
+  line.el.textContent = msg.text;
+  line.el.className = msg.final ? "final" : "provisional";
   liveEl.scrollTop = liveEl.scrollHeight;
 }
 
@@ -61,7 +61,7 @@ function connect() {
   ws.addEventListener("message", (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === "CAPTION_UPDATE") {
-      appendNaively(msg);
+      showCaption(msg);
     } else if (msg.type === "HISTORY") {
       console.log(`HISTORY with ${msg.items?.length ?? 0} item(s)`, msg);
       // TODO: merge history without stale/duplicate final captions.
