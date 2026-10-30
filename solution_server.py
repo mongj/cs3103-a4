@@ -137,7 +137,7 @@ async def handler(ws) -> None:
     try:
         raw = await asyncio.wait_for(ws.recv(), timeout=5)
         hello = json.loads(raw)
-    except (asyncio.TimeoutError, json.JSONDecodeError):
+    except (asyncio.TimeoutError, json.JSONDecodeError, ConnectionClosed):
         await ws.close(code=1008, reason="Expected a valid hello message")
         return
 
