@@ -1,6 +1,6 @@
 /* LiveRecall browser client. See ARCHITECTURE.md for the design. */
 
-const WS_URL = "ws://127.0.0.1:8765";
+const WS_URL = `ws://${location.hostname || "127.0.0.1"}:8765`;
 const RECONNECT_DELAY_MS = 1000;
 const HISTORY_SECONDS = 60;  // the longest recall view
 const KEEP_SECONDS = 90;
@@ -8,12 +8,14 @@ const KEEP_SECONDS = 90;
 const statusEl = document.getElementById("status");
 const liveEl = document.getElementById("live");
 const recallEl = document.getElementById("recall");
+const offlineButton = document.getElementById("offline");
 
 // segment -> {msg, el}: one on-screen line per segment, oldest first.
 const lines = new Map();
 let lastFinal = { segment: 0, revision: 0 };
 
 let ws;
+let offline = false;
 
 function numericClientId() {
   const key = "liverecall-client-id";
@@ -37,6 +39,7 @@ function forgetOldLines() {
 function showCaption(msg) {
   let line = lines.get(msg.segment);
   if (line && msg.revision <= line.msg.revision) return;  // never regress a segment
+  const atBottom = liveEl.scrollHeight - liveEl.scrollTop - liveEl.clientHeight <= 1;
   if (!line) {
     line = { el: liveEl.appendChild(document.createElement("div")) };
     lines.set(msg.segment, line);
@@ -46,7 +49,7 @@ function showCaption(msg) {
   line.el.className = msg.final ? "final" : "provisional";
   if (msg.final) lastFinal = msg;
   forgetOldLines();
-  liveEl.scrollTop = liveEl.scrollHeight;
+  if (atBottom) liveEl.scrollTop = liveEl.scrollHeight;  // leave a student reading back alone
 }
 
 function showRecall(seconds) {
@@ -59,6 +62,11 @@ function showRecall(seconds) {
 }
 
 function connect() {
+  if (offline) {
+    statusEl.textContent = "offline";
+    setTimeout(connect, RECONNECT_DELAY_MS);
+    return;
+  }
   statusEl.textContent = "connecting";
   ws = new WebSocket(WS_URL);
 
@@ -84,10 +92,18 @@ function connect() {
   });
 
   ws.addEventListener("close", () => {
-    statusEl.textContent = "reconnecting";
+    statusEl.textContent = offline ? "offline" : "reconnecting";
     setTimeout(connect, RECONNECT_DELAY_MS);
   });
 }
+
+// Demo control: holds the client offline. The retry loop in connect() is the
+// only path back online, so a quick double click can't open a second socket.
+offlineButton.addEventListener("click", () => {
+  offline = !offline;
+  offlineButton.textContent = offline ? "Go online" : "Go offline";
+  if (offline) ws.close();
+});
 
 for (const button of document.querySelectorAll("button[data-seconds]")) {
   button.addEventListener("click", () => showRecall(Number(button.dataset.seconds)));
