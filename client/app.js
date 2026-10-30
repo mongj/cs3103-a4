@@ -1,21 +1,17 @@
-/*
- * LiveRecall browser client.
- *
- * Graded TODOs:
- *   - maintain >=60 s of finalized local state
- *   - implement 30 s default recall + 15/30/60 s views
- *   - automatic reconnect + correct resume state
- *   - HISTORY merge/deduplication
- *   - usable final UI
- */
+/* LiveRecall browser client. See ARCHITECTURE.md for the design. */
 
 const WS_URL = "ws://127.0.0.1:8765";
+const RECONNECT_DELAY_MS = 1000;
+const HISTORY_SECONDS = 60;  // the longest recall view
+const KEEP_SECONDS = 90;
+
 const statusEl = document.getElementById("status");
 const liveEl = document.getElementById("live");
 const recallEl = document.getElementById("recall");
 
-// segment -> {revision, el}: one on-screen line per segment.
+// segment -> {msg, el}: one on-screen line per segment, oldest first.
 const lines = new Map();
+let lastFinal = { segment: 0, revision: 0 };
 
 let ws;
 
@@ -29,17 +25,37 @@ function numericClientId() {
   return Number(value);
 }
 
+function forgetOldLines() {
+  const cutoff = Date.now() / 1000 - KEEP_SECONDS;
+  for (const [segment, line] of lines) {
+    if (line.msg.source_ts >= cutoff) break;
+    line.el.remove();
+    lines.delete(segment);
+  }
+}
+
 function showCaption(msg) {
   let line = lines.get(msg.segment);
-  if (line && msg.revision <= line.revision) return;  // never regress a segment
+  if (line && msg.revision <= line.msg.revision) return;  // never regress a segment
   if (!line) {
     line = { el: liveEl.appendChild(document.createElement("div")) };
     lines.set(msg.segment, line);
   }
-  line.revision = msg.revision;
+  line.msg = msg;
   line.el.textContent = msg.text;
   line.el.className = msg.final ? "final" : "provisional";
+  if (msg.final) lastFinal = msg;
+  forgetOldLines();
   liveEl.scrollTop = liveEl.scrollHeight;
+}
+
+function showRecall(seconds) {
+  const cutoff = Date.now() / 1000 - seconds;
+  const missed = [...lines.values()]
+    .map((line) => line.msg)
+    .filter((msg) => msg.final && msg.source_ts >= cutoff)
+    .map((msg) => msg.text);
+  recallEl.textContent = missed.join("\n") || `Nothing in the last ${seconds} seconds.`;
 }
 
 function connect() {
@@ -52,9 +68,9 @@ function connect() {
       type: "CLIENT_HELLO",
       client_id: numericClientId(),
       session: "L1",
-      last_segment: 0,       // TODO: resume latest finalized state
-      last_revision: 0,
-      history_seconds: 30
+      last_segment: lastFinal.segment,
+      last_revision: lastFinal.revision,
+      history_seconds: HISTORY_SECONDS
     }));
   });
 
@@ -63,26 +79,18 @@ function connect() {
     if (msg.type === "CAPTION_UPDATE") {
       showCaption(msg);
     } else if (msg.type === "HISTORY") {
-      console.log(`HISTORY with ${msg.items?.length ?? 0} item(s)`, msg);
-      // TODO: merge history without stale/duplicate final captions.
+      msg.items.forEach(showCaption);
     }
   });
 
   ws.addEventListener("close", () => {
-    statusEl.textContent = "disconnected";
-    // TODO: automatic reconnect after a short delay, using finalized resume state.
-  });
-
-  ws.addEventListener("error", () => {
-    statusEl.textContent = "connection error";
+    statusEl.textContent = "reconnecting";
+    setTimeout(connect, RECONNECT_DELAY_MS);
   });
 }
 
 for (const button of document.querySelectorAll("button[data-seconds]")) {
-  button.addEventListener("click", () => {
-    const seconds = Number(button.dataset.seconds);
-    recallEl.textContent = `TODO: show finalized captions from the previous ${seconds} seconds using local state.`;
-  });
+  button.addEventListener("click", () => showRecall(Number(button.dataset.seconds)));
 }
 
 connect();

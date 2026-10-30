@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 """
-CS3103 Assignment 4 - LiveRecall naive working baseline.
-
-This starter is intentionally useful but incomplete. It provides the required
-CLI and a basic WebSocket broadcaster so that caption_source.py -> server ->
-browser/load clients works on day one.
+CS3103 Assignment 4 - LiveRecall server.
 
 It DOES NOT implement the graded networking mechanisms:
-  - revision-state management or deduplication
-  - recent-history recovery or late-join recovery
   - bounded per-client application queues
   - slow-client isolation
   - semantic coalescing / backpressure
@@ -16,9 +10,6 @@ It DOES NOT implement the graded networking mechanisms:
 
 Required evaluator command:
     python solution_server.py --port 8765
-
-Teams should replace or substantially extend the implementation while keeping
-this command-line interface and the protocol in the assignment specification.
 """
 
 from __future__ import annotations
@@ -26,38 +17,65 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import time
+from collections import deque
 from typing import Any
 
 import websockets
+from websockets.exceptions import ConnectionClosed
 
-# Naive global set of currently connected student clients.
-# There is deliberately no per-client queue or recovery state here.
-CLIENTS: set[Any] = set()
+# Longer than the 60 s recovery requirement, so a client offline for a full
+# 60 s can still recover the captions finalized while it was reconnecting.
+HISTORY_WINDOW_SECONDS = 90
+
+CLIENTS: set[asyncio.Queue[str]] = set()  # one outbox per connected client
+FINALS: deque[dict[str, Any]] = deque()  # finalized captions, oldest first
+LATEST: dict[str, Any] | None = None  # newest accepted caption
 
 
-async def broadcast_naively(raw_message: str) -> None:
-    """Send one message directly to every connected client.
+def rank(msg: dict[str, Any]) -> tuple[int, bool, int]:
+    """Order captions so that a final outranks every revision of its segment."""
+    return msg["segment"], msg["final"], msg["revision"]
 
-    This is intentionally a naive baseline. The source handler waits for all
-    sends to complete. Under pressure, this design may accumulate delay and is
-    not the target architecture for the assignment.
+
+def accept(msg: dict[str, Any]) -> bool:
+    """Record a caption, or return False if it is stale or a duplicate."""
+    global LATEST
+    if LATEST and rank(msg) <= rank(LATEST):
+        return False
+    LATEST = msg
+    if msg["final"]:
+        FINALS.append(msg)
+        while FINALS[0]["source_ts"] < msg["source_ts"] - HISTORY_WINDOW_SECONDS:
+            FINALS.popleft()
+    return True
+
+
+def missed_finals(hello: dict[str, Any]) -> list[dict[str, Any]]:
+    """Select the finals for a HISTORY reply.
+
+    A segment has one final, so last_segment alone identifies what the client
+    holds. history_seconds only sizes the context of a client with no state: a
+    resuming client gets everything it missed, or it would have a permanent gap.
     """
-    if not CLIENTS:
-        return
-
-    snapshot = list(CLIENTS)
-    results = await asyncio.gather(
-        *(client.send(raw_message) for client in snapshot),
-        return_exceptions=True,
-    )
-    for client, result in zip(snapshot, results):
-        if isinstance(result, Exception):
-            CLIENTS.discard(client)
+    last_segment = hello.get("last_segment", 0)
+    cutoff = time.time() - hello.get("history_seconds", 30)
+    return [
+        final
+        for final in FINALS
+        if final["segment"] > last_segment
+        and (last_segment or final["source_ts"] >= cutoff)
+    ]
 
 
 async def handle_source(ws, hello: dict[str, Any]) -> None:
+    global LATEST
     session = hello.get("session")
     print(f"source connected: session={session}", flush=True)
+
+    # The source numbers segments from 1, so a new source is a new lecture.
+    FINALS.clear()
+    LATEST = None
 
     try:
         async for raw in ws:
@@ -68,39 +86,51 @@ async def handle_source(ws, hello: dict[str, Any]) -> None:
 
             msg_type = msg.get("type")
             if msg_type == "CAPTION_UPDATE":
-                # Baseline behavior: forward exactly what was received.
-                # No history, state, validation, coalescing, or bounded queues.
-                await broadcast_naively(raw)
+                if accept(msg):
+                    for outbox in CLIENTS:
+                        outbox.put_nowait(raw)
             elif msg_type == "SOURCE_DONE":
                 # Test-control message. The specification does not require it
                 # to be forwarded to clients.
                 print("source finished", flush=True)
             else:
-                # Forward compatibility: ignore fields/messages this baseline
-                # doesn't understand rather than crashing.
+                # Forward compatibility: ignore unrecognized messages.
                 continue
     finally:
         print("source disconnected", flush=True)
 
 
+async def send_loop(ws, outbox: asyncio.Queue[str]) -> None:
+    try:
+        while True:
+            await ws.send(await outbox.get())
+    except ConnectionClosed:
+        pass
+
+
 async def handle_client(ws, hello: dict[str, Any]) -> None:
     client_id = hello.get("client_id")
 
-    # The baseline has no stored recovery state. Sending an empty HISTORY makes
-    # the connection behavior visible and keeps the starter easy to inspect.
-    # Students must implement correct HISTORY semantics for the assignment.
-    await ws.send(json.dumps({"type": "HISTORY", "items": []}))
+    # No await until the client is in CLIENTS: every caption is therefore either
+    # in this catch-up or broadcast to the outbox afterwards, never lost between.
+    outbox: asyncio.Queue[str] = asyncio.Queue()
+    outbox.put_nowait(json.dumps({"type": "HISTORY", "items": missed_finals(hello)}))
+    if LATEST and not LATEST["final"]:
+        outbox.put_nowait(json.dumps(LATEST))
+    CLIENTS.add(outbox)
 
-    CLIENTS.add(ws)
+    sender = asyncio.create_task(send_loop(ws, outbox))
     print(f"client connected: id={client_id}; clients={len(CLIENTS)}", flush=True)
     try:
-        # Student clients normally don't send further messages after hello.
         # Keep the WebSocket open until the client disconnects.
         async for _ in ws:
             pass
     finally:
-        CLIENTS.discard(ws)
-        print(f"client disconnected: id={client_id}; clients={len(CLIENTS)}", flush=True)
+        sender.cancel()
+        CLIENTS.discard(outbox)
+        print(
+            f"client disconnected: id={client_id}; clients={len(CLIENTS)}", flush=True
+        )
 
 
 async def handler(ws) -> None:
@@ -129,7 +159,7 @@ async def main_async(port: int) -> None:
         ping_interval=20,
         ping_timeout=20,
     ):
-        print(f"LiveRecall baseline listening on ws://0.0.0.0:{port}", flush=True)
+        print(f"LiveRecall listening on ws://0.0.0.0:{port}", flush=True)
         await asyncio.Future()
 
 
