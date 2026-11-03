@@ -10,6 +10,7 @@ VM_DIR=/home/ubuntu/cs3103_a4
 VENV=/home/ubuntu/venv
 PORT=8766
 RUNS=1
+RESULTS=results/$(date +%s)
 ROW='%-16s %12s %14s %8s %10s %10s %10s %10s\n'
 
 case "${1:-}" in
@@ -31,10 +32,19 @@ for test_id in sys.argv[1].split(",") if sys.argv[1] else tests:
 PY
 )
 
-mkdir -p results
+mkdir -p "$RESULTS"
 
 if [ "$(multipass info "$VM" | awk '/^State:/{print $2}')" != Running ]; then
   multipass start "$VM" >&2
+fi
+# See vm/99-nohlt.cfg. This comes before mounting, because a restart drops mounts.
+if ! multipass exec "$VM" -- grep -qw nohlt /proc/cmdline; then
+  echo "Enabling nohlt in $VM and restarting it" >&2
+  multipass transfer vm/99-nohlt.cfg "$VM:/tmp/99-nohlt.cfg"
+  # bash -lc: multipass exec mangles the arguments of "sudo sh -c".
+  multipass exec "$VM" -- bash -lc \
+    "sudo mv /tmp/99-nohlt.cfg /etc/default/grub.d/ && sudo update-grub" >&2
+  multipass restart "$VM" >&2
 fi
 if ! multipass info "$VM" | grep -qF "$VM_DIR"; then
   multipass mount "$ROOT" "$VM:$VM_DIR" >&2
@@ -48,11 +58,14 @@ multipass exec "$VM" -- bash -lc "set -eu
 # Prints the median of each metric across the test's runs, one field per column.
 print_row() {
   # shellcheck disable=SC2046  # word splitting into printf fields is intended
-  printf "$ROW" $(python3 - "$1" "$RUNS" <<'PY'
+  printf "$ROW" $(python3 - "$RESULTS" "$1" "$RUNS" <<'PY'
 import json, statistics, sys
 
-test_id, runs = sys.argv[1], int(sys.argv[2])
-summaries = [json.load(open(f"results/{test_id}_run{i:02d}.json")) for i in range(1, runs + 1)]
+results, test_id, runs = sys.argv[1], sys.argv[2], int(sys.argv[3])
+# run_demo.py only adds the _runNN suffix when there is more than one run.
+stems = [f"{test_id}_run{i:02d}" for i in range(1, runs + 1)] if runs > 1 else [test_id]
+paths = [f"{results}/{stem}.json" for stem in stems]
+summaries = [json.load(open(path)) for path in paths]
 
 def median(key, fmt="{:.2f}"):
     values = [s[key] for s in summaries if key in s and s[key] == s[key]]  # skip NaN
@@ -86,8 +99,8 @@ run_test() {
     sudo bash ./network_profiles/reset.sh lo
     $apply_profile
     '$VENV/bin/python' run_demo.py --runs $RUNS --port $PORT --quiet-server \
-      --output-stem 'results/$test_id' $args
-  " </dev/null >"results/$test_id.log" 2>&1
+      --output-stem '$RESULTS/$test_id' $args
+  " </dev/null >"$RESULTS/$test_id.log" 2>&1
 }
 
 # shellcheck disable=SC2059  # ROW is the shared format string
@@ -95,8 +108,8 @@ printf "$ROW" test finals completeness conn_err p50_ms p95_ms p99_ms fresh
 TAB=$(printf '\t')
 echo "$PLAN" | while IFS=$TAB read -r test_id profile args; do
   if ! run_test "$test_id" "$profile" "$args"; then
-    echo "$test_id failed. Last lines of results/$test_id.log:" >&2
-    tail -n 40 "results/$test_id.log" >&2
+    echo "$test_id failed. Last lines of $RESULTS/$test_id.log:" >&2
+    tail -n 40 "$RESULTS/$test_id.log" >&2
     exit 1
   fi
   print_row "$test_id"
