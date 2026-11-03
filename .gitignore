@@ -10,6 +10,7 @@ __pycache__/
 # Test artifacts (root)
 /t*.csv
 /t*.json
+!/tests.json
 /demo_results*
 /repro*
 /verify*

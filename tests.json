@@ -1,0 +1,18 @@
+{
+  "t1_basic": {
+    "args": "--clients 20 --duration 20"
+  },
+  "t2_scale": {
+    "args": "--clients 100 --duration 40"
+  },
+  "t3_slow_readers": {
+    "args": "--clients 100 --duration 60 --slow-percent 10 --slow-ms 500"
+  },
+  "t4_reconnect": {
+    "args": "--clients 100 --duration 60 --disconnect-percent 20 --disconnect-at 15 --disconnect-seconds 5"
+  },
+  "t5_delay_loss": {
+    "args": "--clients 100 --duration 40",
+    "network_profile": "delay_loss"
+  }
+}
