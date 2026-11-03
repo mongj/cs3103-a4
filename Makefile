@@ -5,7 +5,7 @@ DURATION ?= 1200
 REVISION_DELAY ?= 0.60
 SEGMENT_GAP ?= 0.8
 TRANSCRIPT_PATH ?= sample_transcript.txt
-SESSION ?= liverecall
+SESSION ?= L1
 
 .PHONY: help server client source
 
@@ -26,4 +26,5 @@ client:
 	$(PYTHON) -m http.server $(HTTP_PORT) --directory client/dist
 
 source:
-	$(PYTHON) caption_source.py --duration $(DURATION) --revision-delay $(REVISION_DELAY) --segment-gap $(SEGMENT_GAP) --transcript $(TRANSCRIPT_PATH) --uri ws://127.0.0.1:$(PORT)
+	$(PYTHON) caption_source.py --duration $(DURATION) --revision-delay $(REVISION_DELAY) \
+	--segment-gap $(SEGMENT_GAP) --transcript $(TRANSCRIPT_PATH) --uri ws://127.0.0.1:$(PORT) --session $(SESSION)
