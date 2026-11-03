@@ -1,7 +1,7 @@
 PYTHON ?= venv/bin/python
 PORT ?= 8765
 HTTP_PORT ?= 8000
-DURATION ?= 120
+DURATION ?= 1200
 SESSION ?= liverecall
 
 .PHONY: help server client source
@@ -23,4 +23,4 @@ client:
 	$(PYTHON) -m http.server $(HTTP_PORT) --directory client/dist
 
 source:
-	$(PYTHON) caption_source.py --duration $(DURATION)
+	$(PYTHON) caption_source.py --duration $(DURATION) --revision-delay 0.60 --segment-gap 0.8
