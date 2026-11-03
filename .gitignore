@@ -14,6 +14,3 @@ __pycache__/
 /repro*
 /verify*
 /smoke*
-
-# Local test output directory
-results/
