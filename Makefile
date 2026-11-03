@@ -11,7 +11,7 @@ SESSION ?= liverecall
 help:
 	@echo "Run each target in its own terminal, from the repo root:"
 	@echo "  make server   WebSocket server on port $(PORT)"
-	@echo "  make client   browser files at http://127.0.0.1:$(HTTP_PORT)"
+	@echo "  make client   build the React client, serve it at http://127.0.0.1:$(HTTP_PORT)"
 	@echo "  make source   caption source for $(DURATION)s"
 	@echo "Then open http://127.0.0.1:$(HTTP_PORT)"
 
@@ -19,7 +19,8 @@ server:
 	$(PYTHON) solution_server.py --port $(PORT)
 
 client:
-	$(PYTHON) -m http.server $(HTTP_PORT) --directory client
+	cd client && yarn install && yarn build
+	$(PYTHON) -m http.server $(HTTP_PORT) --directory client/dist
 
 source:
 	$(PYTHON) caption_source.py --duration $(DURATION)

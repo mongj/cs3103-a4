@@ -1,0 +1,105 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Padlet-inspired theme: Inter for text, Lilita One for display headings,
+   hot pink for actions, Padlet yellow for "in progress", pastel sticky notes. */
+@theme inline {
+    --font-heading: "Lilita One", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-sidebar: var(--sidebar);
+    --color-highlight: var(--highlight);
+    --color-success: var(--success);
+    --color-note-pink: #fbcfdc;
+    --color-note-yellow: #fdeea0;
+    --color-note-green: #c9f0c4;
+    --color-note-blue: #c3e4fa;
+    --color-note-purple: #ddd0fa;
+    --color-note-foreground: #111111;
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: #ffffff;
+    --foreground: #111111;
+    --card: #f1f3f6;
+    --card-foreground: #111111;
+    --popover: #ffffff;
+    --popover-foreground: #111111;
+    --primary: #ff4081;
+    --primary-foreground: #ffffff;
+    --secondary: #eceef2;
+    --secondary-foreground: #111111;
+    --muted: #eceef2;
+    --muted-foreground: #6b6f76;
+    --accent: #eceef2;
+    --accent-foreground: #111111;
+    --destructive: #e5484d;
+    --border: #e3e6eb;
+    --input: #dfe2e7;
+    --ring: #ff4081;
+    --sidebar: #f7f8fa;
+    --highlight: #fec006;
+    --success: #22b45a;
+    --radius: 1rem;
+}
+
+.dark {
+    --background: #242527;
+    --foreground: #ffffff;
+    --card: #2f3033;
+    --card-foreground: #ffffff;
+    --popover: #2f3033;
+    --popover-foreground: #ffffff;
+    --primary: #ff4081;
+    --primary-foreground: #ffffff;
+    --secondary: rgb(239 244 250 / 0.1);
+    --secondary-foreground: #ffffff;
+    --muted: rgb(239 244 250 / 0.1);
+    --muted-foreground: rgb(255 255 255 / 0.7);
+    --accent: rgb(239 244 250 / 0.1);
+    --accent-foreground: #ffffff;
+    --destructive: #ff6369;
+    --border: rgb(255 255 255 / 0.1);
+    --input: rgb(255 255 255 / 0.15);
+    --ring: #ff4081;
+    --sidebar: #111111;
+    --highlight: #fec006;
+    --success: #3dd68c;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply h-full overflow-hidden overscroll-none bg-background text-foreground font-sans antialiased;
+  }
+}
