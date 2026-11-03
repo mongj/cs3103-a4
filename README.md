@@ -21,7 +21,8 @@ network-impairment experiments.
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip iproute2
+sudo apt install -y python3 python3-venv python3-pip iproute2 nodejs npm
+npm install -g yarn
 ```
 
 Verify:
@@ -81,14 +82,20 @@ the same port.
 
 ## Browser client
 
-In a second terminal (venv active), serve the client files:
+In a second terminal, install and start the Vite dev server:
 
 ```bash
-python -m http.server 8000 --directory client
+corepack enable
+cd client
+yarn install
+yarn dev
 ```
 
-Open `http://127.0.0.1:8000` in one or more browser tabs. The client connects
-automatically to `ws://127.0.0.1:8765`.
+Then open `http://127.0.0.1:8000` in a browser. The client connects automatically
+to `ws://127.0.0.1:8765`.
+
+> Note: `yarn dev` must stay running in the terminal while you use the browser.
+> If port 8000 is already in use, free it first: `lsof -ti:8000 | xargs kill -9`
 
 ---
 
@@ -140,9 +147,9 @@ Apply impairment to the loopback interface before running T2 (requires root):
 
 ```bash
 # example: 50 ms delay + 10 ms jitter + 1 % loss
-sudo bash network_profiles/delay_loss.sh
+sudo bash network_profiles/delay_loss.sh lo
 python run_demo.py --clients 100 --duration 40 --runs 3 --output-stem t5_impaired
-sudo bash network_profiles/reset.sh
+sudo bash network_profiles/reset.sh lo
 ```
 
 Other profiles in `network_profiles/`: `delay_100ms.sh`, `loss_3pct.sh`,
