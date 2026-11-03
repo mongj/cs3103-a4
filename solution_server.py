@@ -73,9 +73,29 @@ BACKOFF_RECOVERY_PER_SECOND = 0.1
 # counting as lag forever.
 RTT_MIN_WINDOW_SECONDS = 5.0
 
+# When the server is short of CPU, every pong waits for the busy event loop,
+# so every client's lag rises although no client is slow. A probe sleeps this
+# long and records how late it wakes; the worst of the last
+# LOOP_DELAY_SAMPLES (one second) is the server's own share of a lag.
+LOOP_PROBE_SECONDS = 0.1
+LOOP_DELAY_SAMPLES = 10
+
 FINALS: deque[dict[str, Any]] = deque()  # finals in the history window, oldest first
 LATEST: dict[str, Any] | None = None  # newest accepted caption
 CLIENTS: set[ClientOutbox] = set()  # connected clients that receive broadcasts
+LOOP_DELAYS: deque[float] = deque([0.0], maxlen=LOOP_DELAY_SAMPLES)  # seconds late
+
+
+def loop_delay() -> float:
+    """The server's own recent share of every client's lag."""
+    return max(LOOP_DELAYS)
+
+
+async def probe_loop_delay() -> None:
+    while True:
+        start = time.monotonic()
+        await asyncio.sleep(LOOP_PROBE_SECONDS)
+        LOOP_DELAYS.append(time.monotonic() - start - LOOP_PROBE_SECONDS)
 
 
 def rank(msg: dict[str, Any]) -> tuple[int, bool, int]:
@@ -132,6 +152,9 @@ class ClientOutbox:
         It is the minimum over the previous and current RTT_MIN_WINDOW, so
         it follows the network both down and up.
       - lag: round trip minus rtt_min, the time spent reading the backlog.
+        It includes the server's own delay (loop_delay()). What to send
+        depends on the whole lag, since freshness does; ping cadence and
+        eviction judge the client, so they use the lag less loop_delay().
       - ping_interval: minimum time between pings; see PING_INTERVAL_*.
       - backoff: minimum time between rounds of provisional sends, as of
         backoff_at. When a pong shows lag above LAG_TARGET, it jumps to that
@@ -183,7 +206,7 @@ class ClientOutbox:
             now = time.monotonic()
             self._update_rtt_min(now, rtt)
             lag = rtt - self.rtt_min
-            if lag <= STABLE_LAG_SECONDS:
+            if lag - loop_delay() <= STABLE_LAG_SECONDS:
                 self.ping_interval = min(
                     self.ping_interval + PING_INTERVAL_STEP_SECONDS,
                     PING_INTERVAL_MAX_SECONDS,
@@ -282,7 +305,7 @@ class ClientOutbox:
             while not self.closed:
                 now = time.monotonic()
                 lag = self.lag(now)
-                if lag > EVICT_LAG_SECONDS:
+                if lag - loop_delay() > EVICT_LAG_SECONDS:
                     self.evict(f"lag {lag:.1f}s")
                     return
 
@@ -403,7 +426,7 @@ async def main_async(port: int) -> None:
         ping_timeout=20,
     ):
         print(f"LiveRecall listening on ws://0.0.0.0:{port}", flush=True)
-        await asyncio.Future()
+        await probe_loop_delay()
 
 
 def main() -> None:
