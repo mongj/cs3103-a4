@@ -1,0 +1,4 @@
+# Bonus ASR feature only — NOT required for mandatory solution_server.py evaluation.
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24
