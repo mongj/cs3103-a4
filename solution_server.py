@@ -36,16 +36,28 @@ HISTORY_WINDOW_SECONDS = 90
 # means it has stalled. It is evicted and recovers through HISTORY.
 MAX_PENDING_FINALS = 256
 
-# Lag is how long a client takes to read the frames sent before a ping (see
-# ClientOutbox). Above this, the client is behind: provisionals are held until
-# the ping returns, and then spaced out. Healthy clients under the delay+loss
-# profile stay below it (measured round trip p99.9: 1.3 s).
-LAG_TARGET_SECONDS = 1.0
+# How long a client takes to read the frames sent before a ping (see
+# ClientOutbox). Above this, the client is considered to be behind, and we
+# will hold provisional segments until the ping returns. 500ms is chosen
+# as that is the default for "freshness" metric as given in the brief.
+LAG_TARGET_SECONDS = 0.5
 
-# Ping at most this often, so lag is measured to within a quarter of the
-# target. Only one ping is outstanding at a time, so the actual interval is
-# max(this, round trip).
-PING_INTERVAL_SECONDS = LAG_TARGET_SECONDS / 4
+# Pings take about a third of the server's CPU at 5000 clients, so the ping
+# interval adapts per client between these bounds. It grows by STEP after each
+# pong whose lag is at most STABLE_LAG, and drops straight to MIN after any
+# other pong: pinging too often only costs CPU, while pinging too rarely lets
+# a client fall behind unseen. From MIN to MAX takes 6 stable pongs, about
+# 3.4 s. Only one ping is outstanding at a time, so the actual interval is
+# max(interval, round trip).
+PING_INTERVAL_MIN_SECONDS = 0.25
+PING_INTERVAL_MAX_SECONDS = 1.0
+PING_INTERVAL_STEP_SECONDS = 0.125
+
+# Lag at most this is network jitter rather than a growing backlog. Comparing
+# each lag with the previous one would mostly measure that jitter, so a client
+# counts as falling behind once its lag rises above this level, well before it
+# reaches LAG_TARGET.
+STABLE_LAG_SECONDS = LAG_TARGET_SECONDS / 4
 
 # Above this lag even finals arrive too late: the client is evicted and
 # recovers through HISTORY.
@@ -55,6 +67,11 @@ EVICT_LAG_SECONDS = 10.0
 # Slow on purpose: the client's WebSocket library buffers 16 messages that the
 # server cannot see, so a faster recovery refills that buffer before lag shows.
 BACKOFF_RECOVERY_PER_SECOND = 0.1
+
+# rtt_min is the fastest pong in the last one or two windows of this length,
+# so a lasting rise in network delay becomes the new baseline instead of
+# counting as lag forever.
+RTT_MIN_WINDOW_SECONDS = 5.0
 
 FINALS: deque[dict[str, Any]] = deque()  # finals in the history window, oldest first
 LATEST: dict[str, Any] | None = None  # newest accepted caption
@@ -111,8 +128,11 @@ class ClientOutbox:
 
     The client's WebSocket library answers a ping only after reading every
     frame sent before it, so pings measure how far behind the client reads:
-      - rtt_min: fastest round trip seen, taken as the network's share.
+      - rtt_min: fastest recent round trip, taken as the network's share.
+        It is the minimum over the previous and current RTT_MIN_WINDOW, so
+        it follows the network both down and up.
       - lag: round trip minus rtt_min, the time spent reading the backlog.
+      - ping_interval: minimum time between pings; see PING_INTERVAL_*.
       - backoff: minimum time between rounds of provisional sends, as of
         backoff_at. When a pong shows lag above LAG_TARGET, it jumps to that
         lag; it then shrinks back to 0 at BACKOFF_RECOVERY_PER_SECOND. A gap
@@ -128,8 +148,11 @@ class ClientOutbox:
         self._wake = asyncio.Event()  # set when there may be something to send
 
         self.rtt_min = math.inf
+        self.rtt_min_next = math.inf  # fastest round trip in the current window
+        self.rtt_window_at = 0.0  # monotonic time the current window started
         self.ping_at = -math.inf  # monotonic time the last ping was sent
         self.pong_due = False
+        self.ping_interval = PING_INTERVAL_MIN_SECONDS
         self.backoff = 0.0
         self.backoff_at = 0.0
         self.last_provisional_at = 0.0
@@ -157,14 +180,30 @@ class ClientOutbox:
     def on_pong(self, pong: asyncio.Future) -> None:
         if not pong.cancelled() and pong.exception() is None:
             rtt = pong.result()  # websockets resolves the future with the round trip
-            self.rtt_min = min(self.rtt_min, rtt)
+            now = time.monotonic()
+            self._update_rtt_min(now, rtt)
             lag = rtt - self.rtt_min
+            if lag <= STABLE_LAG_SECONDS:
+                self.ping_interval = min(
+                    self.ping_interval + PING_INTERVAL_STEP_SECONDS,
+                    PING_INTERVAL_MAX_SECONDS,
+                )
+            else:
+                self.ping_interval = PING_INTERVAL_MIN_SECONDS
             if lag > LAG_TARGET_SECONDS:
-                now = time.monotonic()
                 self.backoff = max(self.provisional_gap(now), lag)
                 self.backoff_at = now
         self.pong_due = False
         self._wake.set()
+
+    def _update_rtt_min(self, now: float, rtt: float) -> None:
+        """Keep rtt_min as the minimum over the previous and current window."""
+        if now - self.rtt_window_at >= RTT_MIN_WINDOW_SECONDS:
+            self.rtt_min = self.rtt_min_next
+            self.rtt_min_next = math.inf
+            self.rtt_window_at = now
+        self.rtt_min_next = min(self.rtt_min_next, rtt)
+        self.rtt_min = min(self.rtt_min, rtt)
 
     def push(self, msg: dict[str, Any], raw: str) -> None:
         """Queue an accepted caption; evict the client if finals pile up."""
@@ -225,7 +264,7 @@ class ClientOutbox:
     async def _ping_if_due(self) -> None:
         if (
             not self.pong_due
-            and time.monotonic() - self.ping_at >= PING_INTERVAL_SECONDS
+            and time.monotonic() - self.ping_at >= self.ping_interval
         ):
             pong = await self.ws.ping()
             self.ping_at = time.monotonic()
@@ -260,8 +299,12 @@ class ClientOutbox:
                     # stops reading is evicted even when no captions arrive.
                     timeout = min(timeout or LAG_TARGET_SECONDS, LAG_TARGET_SECONDS)
                 self._wake.clear()
-                with contextlib.suppress(asyncio.TimeoutError):
-                    await asyncio.wait_for(self._wake.wait(), timeout)
+                if timeout is None:
+                    # Most waits have no deadline; skip wait_for's timer.
+                    await self._wake.wait()
+                else:
+                    with contextlib.suppress(asyncio.TimeoutError):
+                        await asyncio.wait_for(self._wake.wait(), timeout)
         except ConnectionClosed:
             pass
         finally:
