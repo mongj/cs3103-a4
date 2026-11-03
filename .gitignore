@@ -11,6 +11,7 @@ __pycache__/
 /t*.csv
 /t*.json
 !/tests.json
+!tests.json
 /demo_results*
 /repro*
 /verify*
