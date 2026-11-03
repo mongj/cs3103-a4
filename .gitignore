@@ -1,3 +1,19 @@
 __pycache__/
 venv/
 results/
+
+# Virtual environments
+venv/
+venv-ubuntu/
+__pycache__/
+
+# Test artifacts (root)
+/t*.csv
+/t*.json
+/demo_results*
+/repro*
+/verify*
+/smoke*
+
+# Local test output directory
+results/
