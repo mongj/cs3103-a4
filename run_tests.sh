@@ -5,11 +5,11 @@
 set -eu
 cd "$(dirname "$0")"
 ROOT=$(pwd)
-VM=liverecall
+VM=${VM:-liverecall}
 VM_DIR=/home/ubuntu/cs3103_a4
 VENV=/home/ubuntu/venv
 PORT=8766
-RUNS=1
+RUNS=${RUNS:-1}
 RESULTS=results/$(date +%s)
 ROW='%-16s %12s %14s %8s %10s %10s %10s %10s\n'
 
@@ -32,9 +32,16 @@ for test_id in sys.argv[1].split(",") if sys.argv[1] else tests:
 PY
 )
 
+STATE=$(multipass info "$VM" | awk '/^State:/{print $2}')
+# Two runs on one port connect to each other's servers and corrupt both results.
+if [ "$STATE" = Running ] && multipass exec "$VM" -- bash -lc "ss -Hltn | grep -q ':$PORT '"; then
+  echo "Port $PORT is in use in $VM: is another run_tests.sh running?" >&2
+  exit 1
+fi
+
 mkdir -p "$RESULTS"
 
-if [ "$(multipass info "$VM" | awk '/^State:/{print $2}')" != Running ]; then
+if [ "$STATE" != Running ]; then
   multipass start "$VM" >&2
 fi
 # See vm/99-nohlt.cfg. This comes before mounting, because a restart drops mounts.
@@ -95,6 +102,7 @@ run_test() {
   multipass exec "$VM" -- bash -lc "set -eu
     cd '$VM_DIR'
     export PYTHONDONTWRITEBYTECODE=1
+    ulimit -n \"\$(ulimit -Hn)\"  # one socket per client; the default 1024 caps scale tests
     trap 'sudo bash ./network_profiles/reset.sh lo || true' EXIT
     sudo bash ./network_profiles/reset.sh lo
     $apply_profile

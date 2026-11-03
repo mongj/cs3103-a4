@@ -45,11 +45,12 @@ def wait_for_port(port, proc, timeout=10.0):
     raise RuntimeError("server did not listen within 10 seconds")
 
 
-def default_source_segments(duration, source_start_delay):
-    # Public generator is ~0.75 s/segment (2*0.20 revision delay + 0.35 gap).
+def default_source_segments(duration, source_start_delay, segment_seconds):
+    # The public generator sends 3 revisions per segment, so a segment takes
+    # 2 revision delays + 1 segment gap (0.75 s at the defaults).
     # Leave a small tail at the end so clients can drain/settle.
     active = max(3.0, duration - source_start_delay - 2.0)
-    return max(4, math.floor(active / 0.75))
+    return max(4, math.floor(active / segment_seconds))
 
 
 def one_run(args, run_no, here):
@@ -59,7 +60,8 @@ def one_run(args, run_no, here):
     json_path = here / f"{args.output_stem}{suffix}.json"
 
     segments = args.source_segments or default_source_segments(
-        args.duration, args.source_start_delay
+        args.duration, args.source_start_delay,
+        2 * args.revision_delay + args.segment_gap,
     )
 
     server = clients = None
@@ -101,6 +103,8 @@ def one_run(args, run_no, here):
                 sys.executable, "-u", "caption_source.py",
                 "--uri", uri,
                 "--segments", str(segments),
+                "--revision-delay", str(args.revision_delay),
+                "--segment-gap", str(args.segment_gap),
                 "--quiet",
             ],
             cwd=here,
@@ -181,6 +185,11 @@ def main():
     p.add_argument("--late-percent", type=float, default=0)
     p.add_argument("--late-seconds", type=float, default=5)
     p.add_argument("--source-start-delay", type=float, default=1.0)
+    # Passed to caption_source.py; the defaults match it, so the public tests are unchanged.
+    p.add_argument("--revision-delay", type=float, default=0.20,
+                   help="Seconds between provisional revisions")
+    p.add_argument("--segment-gap", type=float, default=0.35,
+                   help="Seconds after a final revision before the next segment")
     p.add_argument("--quiet-server", action="store_true")
     args = p.parse_args()
 

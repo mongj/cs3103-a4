@@ -14,5 +14,84 @@
   "t5_delay_loss": {
     "args": "--clients 100 --duration 40",
     "network_profile": "delay_loss"
+  },
+
+  "scale_5000": {
+    "args": "--clients 5000 --duration 40"
+  },
+  "scale_6000": {
+    "args": "--clients 6000 --duration 40"
+  },
+  "scale_7500": {
+    "args": "--clients 7500 --duration 40"
+  },
+
+  "rate_100hz_1000": {
+    "args": "--clients 1000 --duration 40 --revision-delay 0.01 --segment-gap 0.01"
+  },
+  "rate_100hz_1500": {
+    "args": "--clients 1500 --duration 40 --revision-delay 0.01 --segment-gap 0.01"
+  },
+  "rate_100hz_2500": {
+    "args": "--clients 2500 --duration 40 --revision-delay 0.01 --segment-gap 0.01"
+  },
+
+  "slow_200ms": {
+    "args": "--clients 100 --duration 60 --slow-percent 10 --slow-ms 200"
+  },
+  "slow_1000ms": {
+    "args": "--clients 100 --duration 60 --slow-percent 10 --slow-ms 1000"
+  },
+  "slow_2000ms": {
+    "args": "--clients 100 --duration 60 --slow-percent 10 --slow-ms 2000"
+  },
+
+  "bw2m_150": {
+    "args": "--clients 150 --duration 40",
+    "network_profile": "bandwidth_2mbit"
+  },
+  "bw2m_225": {
+    "args": "--clients 225 --duration 40",
+    "network_profile": "bandwidth_2mbit"
+  },
+  "bw2m_300": {
+    "args": "--clients 300 --duration 40",
+    "network_profile": "bandwidth_2mbit"
+  },
+
+  "net_loss_3pct": {
+    "args": "--clients 100 --duration 40",
+    "network_profile": "loss_3pct"
+  },
+  "net_delay_loss_500": {
+    "args": "--clients 500 --duration 40",
+    "network_profile": "delay_loss"
+  },
+  "net_delay_loss_1000": {
+    "args": "--clients 1000 --duration 40",
+    "network_profile": "delay_loss"
+  },
+
+  "reconnect_2000": {
+    "args": "--clients 2000 --duration 60 --disconnect-percent 40 --disconnect-at 15 --disconnect-seconds 5"
+  },
+  "reconnect_5000": {
+    "args": "--clients 5000 --duration 60 --disconnect-percent 40 --disconnect-at 15 --disconnect-seconds 5"
+  },
+  "reconnect_100s": {
+    "args": "--clients 100 --duration 120 --disconnect-percent 20 --disconnect-at 10 --disconnect-seconds 100"
+  },
+
+  "combo_reconnect_loss": {
+    "args": "--clients 100 --duration 60 --disconnect-percent 20 --disconnect-at 15 --disconnect-seconds 5",
+    "network_profile": "loss_3pct"
+  },
+  "combo_reconnect_delay_loss": {
+    "args": "--clients 100 --duration 60 --disconnect-percent 20 --disconnect-at 15 --disconnect-seconds 5",
+    "network_profile": "delay_loss"
+  },
+  "combo_slow_delay_loss": {
+    "args": "--clients 100 --duration 60 --slow-percent 10 --slow-ms 500",
+    "network_profile": "delay_loss"
   }
 }
