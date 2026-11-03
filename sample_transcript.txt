@@ -1,10 +1,36 @@
+Today we look at how applications actually move data across a network.
 TCP provides reliable byte stream delivery between application processes.
+You write bytes in, and the same bytes come out, in the same order.
 The receiver acknowledges data so that the sender can detect missing information.
+An acknowledgement names the next byte the receiver is still waiting for.
+If that acknowledgement never arrives, the sender transmits those bytes again.
 Round trip time measurements are used to estimate a retransmission timeout.
-HTTP version three uses QUIC over UDP rather than TCP.
-A router decrements the IPv4 time to live field before forwarding a packet.
-Network address translation changes addressing information at a network boundary.
+Too short a timeout retransmits data that was merely slow, not lost.
+Too long a timeout leaves a genuine loss sitting there unrepaired.
+The sender also keeps a window of bytes it may have outstanding.
+Flow control lets the receiver pause the sender when its buffer fills up.
+Congestion control is separate, and it slows the sender to protect the path.
+After a loss, the sender usually backs off, then tries a higher rate again.
 Packet loss may increase application delay when retransmission is required.
+Bytes that already arrived can still sit stuck behind the one missing byte.
+That stall is head of line blocking, and it hurts interactive traffic.
+HTTP version three uses QUIC over UDP rather than TCP.
+QUIC recovers lost packets itself, so it does not need TCP underneath.
+Separate streams share one connection, and one loss need not block the rest.
+A router decrements the IPv4 time to live field before forwarding a packet.
+At zero, the router discards the packet rather than sending it any further.
+That rule stops a packet from looping forever around a broken route.
+Network address translation changes addressing information at a network boundary.
+Many private machines share one public address, rewritten as their packets leave.
+Replies are translated back, so each conversation returns to the right machine.
+UDP offers no retransmission, and a lost datagram is simply never delivered.
+Short queries such as DNS often use UDP, and the client just tries again.
+A TCP connection starts with a handshake that agrees the initial sequence numbers.
+Sequence numbers let the receiver rebuild segments into the original byte order.
+A checksum lets the receiver drop a segment that was damaged in transit.
+Closing takes a handshake too, since both sides must agree the stream is finished.
 A good network experiment should report both average and tail latency.
+An average can look fine while a small share of requests is very slow.
+People notice that slow share, so the tail belongs in the reported result.
 Live captions may be revised several times before the final text is available.
 A reconnecting LiveRecall client should recover only the recent context that it missed.

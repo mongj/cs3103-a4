@@ -1,7 +1,7 @@
 /* LiveRecall connection and caption state. See ARCHITECTURE.md for the design. */
+import { LECTURES, type LectureId } from "@/lib/lectures";
 import { useEffect, useRef, useState } from "react";
 
-const WS_URL = `ws://${location.hostname || "127.0.0.1"}:8765`;
 const RECONNECT_DELAY_MS = 1000;
 const HISTORY_SECONDS = 60; // the longest recall view
 const KEEP_SECONDS = 90;
@@ -16,8 +16,6 @@ export type Caption = {
 
 export type Status = "disconnected" | "connecting" | "connected" | "offline" | "reconnecting";
 
-export type Recall = { seconds: number; at: number; captions: Caption[] };
-
 function numericClientId() {
   const key = "liverecall-client-id";
   let value = sessionStorage.getItem(key);
@@ -28,7 +26,9 @@ function numericClientId() {
   return Number(value);
 }
 
-export function useLiveRecall() {
+// State is per lecture: App remounts its user (key={lecture}) on a switch, so
+// the refs below never carry one lecture's captions or resume point into another.
+export function useLiveRecall(lecture: LectureId) {
   // segment -> latest revision, oldest segment first. The Map is the source of
   // truth; `captions` is its snapshot for rendering.
   const lines = useRef(new Map<number, Caption>());
@@ -39,7 +39,6 @@ export function useLiveRecall() {
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [status, setStatus] = useState<Status>("disconnected");
   const [offline, setOffline] = useState(false);
-  const [recall, setRecall] = useState<Recall | null>(null);
   const [clientId] = useState(numericClientId);
 
   useEffect(() => {
@@ -77,7 +76,7 @@ export function useLiveRecall() {
         return;
       }
       setStatus("connecting");
-      const socket = new WebSocket(WS_URL);
+      const socket = new WebSocket(`ws://${location.hostname || "127.0.0.1"}:${LECTURES[lecture].port}`);
       ws.current = socket;
 
       socket.addEventListener("open", () => {
@@ -85,7 +84,7 @@ export function useLiveRecall() {
         socket.send(JSON.stringify({
           type: "CLIENT_HELLO",
           client_id: clientId,
-          session: "L1",
+          session: lecture,
           last_segment: lastFinal.current.segment,
           last_revision: lastFinal.current.revision,
           history_seconds: HISTORY_SECONDS,
@@ -116,7 +115,7 @@ export function useLiveRecall() {
       clearTimeout(timer);
       ws.current?.close();
     };
-  }, [clientId]);
+  }, [clientId, lecture]);
 
   // Demo control: holds the client offline. The retry loop in connect() is the
   // only path back online, so a quick double click can't open a second socket.
@@ -126,12 +125,5 @@ export function useLiveRecall() {
     if (offlineRef.current) ws.current?.close();
   }
 
-  function showRecall(seconds: number) {
-    const now = Date.now() / 1000;
-    const missed = [...lines.current.values()]
-      .filter((msg) => msg.final && msg.source_ts >= now - seconds);
-    setRecall({ seconds, at: now, captions: missed });
-  }
-
-  return { captions, status, offline, recall, clientId, toggleOffline, showRecall };
+  return { captions, status, offline, clientId, toggleOffline };
 }

@@ -1,0 +1,39 @@
+A process is a running program with its own address space and resources.
+Starting a program asks the kernel to create a process and run it.
+That process owns memory, open files, and an identity the kernel keeps track of.
+The scheduler decides which ready process runs on the processor next.
+A process blocked on disk or on input is not ready, so it simply waits.
+A context switch saves one process state and restores another.
+The saved state includes the registers and the point where that process stopped.
+Switches let many processes share one processor, and every switch has a cost.
+Virtual memory gives each process the illusion of a private address space.
+The program uses virtual addresses, and the hardware turns them into physical ones.
+Two processes can use one virtual address and still not share that memory.
+A page fault occurs when the referenced page is not in physical memory.
+The kernel loads the missing page, then retries the instruction that faulted.
+Heavy faulting means the machine is moving pages instead of doing useful work.
+Threads inside one process share memory but keep separate stacks.
+They can hand each other data through that memory without a system call.
+Sharing is convenient, and it is also how a silent data race appears.
+Two threads can update one variable and quietly lose one of the updates.
+A mutex lets only one thread enter a critical section at a time.
+Any other thread that needs the mutex waits until the holder lets go.
+Hold the mutex only for as long as the shared update actually takes.
+Deadlock can arise when threads wait for resources held by each other.
+Taking every lock in one fixed order is a simple way to avoid that.
+A condition variable lets a thread sleep until some other thread wakes it.
+The file system maps a path name onto the data blocks of a file.
+A directory stores names, and each name points at a file or another directory.
+Opening a file returns a handle the process uses for later reads and writes.
+The kernel caches recent blocks, so a reread may never have to touch the disk.
+An interrupt transfers control to the kernel to handle a device event.
+The paused process continues afterwards, and it usually never notices the pause.
+A system call is how a process asks the kernel for a privileged service.
+The kernel checks that request, because user code must not simply be trusted.
+User mode cannot run privileged instructions, while kernel mode is allowed to.
+Fork creates a child that begins as a copy of the process that called it.
+Exec then replaces that child with a different program loaded from the disk.
+When a process exits, the kernel frees its memory and closes its open files.
+A parent can wait for a child and collect the status that child exited with.
+Some schedulers favor fairness, and others favor short tasks a person is waiting on.
+The aim is a busy processor that still answers the user without a long delay.

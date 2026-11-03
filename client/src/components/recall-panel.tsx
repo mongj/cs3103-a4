@@ -1,77 +1,77 @@
-import { clockTime } from "@/components/live-captions";
+import { CaptionCard } from "@/components/caption-card";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import type { Recall } from "@/hooks/use-live-recall";
-import { cn } from "@/lib/utils";
-import { HistoryIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { Caption } from "@/hooks/use-live-recall";
+import { ArrowDownIcon, HistoryIcon } from "lucide-react";
+import { useState } from "react";
+import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 
-const WINDOWS = [15, 30, 60];
-const DEFAULT_WINDOW = 30;
-const NOTE_COLORS = ["bg-note-yellow", "bg-note-pink", "bg-note-blue", "bg-note-green", "bg-note-purple"];
+const WINDOWS = ["15", "30", "60"];
 
-type RecallPanelProps = {
-  recall: Recall | null;
-  onRecall: (seconds: number) => void;
-};
-
-export function RecallPanel({ recall, onRecall }: RecallPanelProps) {
+// Shown only once the student has scrolled up; following resumes at the bottom.
+function ScrollToLatest() {
+  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+  if (isAtBottom) return null;
   return (
-    <aside className="flex min-h-0 shrink-0 flex-col bg-sidebar max-md:max-h-[45%] md:h-full md:w-96">
-      <div className="flex flex-col gap-3 px-5 py-4">
+    <Button
+      className="absolute bottom-4 left-1/2 -translate-x-1/2 shadow-lg"
+      onClick={() => void scrollToBottom()}
+      type="button"
+    >
+      <ArrowDownIcon />
+      Latest
+    </Button>
+  );
+}
+
+export function RecallPanel({ captions }: { captions: Caption[] }) {
+  const [seconds, setSeconds] = useState("30");
+  // The window ends at the newest caption, not now, so it still has content
+  // after the lecture stops.
+  const end = Math.max(...captions.map((caption) => caption.source_ts));
+  const shown = captions.filter((caption) => caption.source_ts >= end - Number(seconds));
+
+  return (
+    <aside className="flex min-h-0 shrink-0 flex-col bg-sidebar max-md:flex-1 md:h-full md:w-80 xl:w-[26rem]">
+      <div className="flex items-center justify-between gap-3 px-5 py-4">
         <h2 className="font-heading text-2xl tracking-wide">What did I miss?</h2>
-        <div className="flex gap-2">
-          {WINDOWS.map((seconds) => (
-            <Button
-              className="flex-1"
-              key={seconds}
-              onClick={() => onRecall(seconds)}
-              size="lg"
-              type="button"
-              variant={seconds === DEFAULT_WINDOW ? "default" : "secondary"}
-            >
-              {seconds} s
-            </Button>
-          ))}
-        </div>
+        <Select onValueChange={setSeconds} value={seconds}>
+          <SelectTrigger aria-label="Recall window" className="rounded-full bg-card font-semibold">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end" position="popper">
+            {WINDOWS.map((value) => (
+              <SelectItem key={value} value={value}>Last {value} s</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
-        {recall === null ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia className="rounded-full bg-note-yellow text-note-foreground" variant="icon">
-                <HistoryIcon />
-              </EmptyMedia>
-              <EmptyTitle className="font-heading text-xl tracking-wide">Catch up</EmptyTitle>
-              <EmptyDescription>Pick a window to see the finalized captions from it.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <>
-            <p className="mb-3 text-xs font-semibold text-muted-foreground">
-              Last {recall.seconds} s, as of {clockTime(recall.at)}
-            </p>
-            {recall.captions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing in the last {recall.seconds} seconds.</p>
-            ) : (
-              <div className="flex flex-col gap-3 p-1">
-                {recall.captions.map((caption) => (
-                  <div
-                    className={cn(
-                      "rounded-xl px-4 py-3 text-note-foreground shadow-sm",
-                      NOTE_COLORS[caption.segment % NOTE_COLORS.length],
-                      caption.segment % 2 ? "rotate-1" : "-rotate-1",
-                    )}
-                    key={caption.segment}
-                  >
-                    <time className="mb-1 block text-xs opacity-60 tabular-nums">{clockTime(caption.source_ts)}</time>
-                    <p className="text-sm font-medium leading-relaxed">{caption.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {shown.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia className="rounded-full bg-note-yellow text-note-foreground" variant="icon">
+              <HistoryIcon />
+            </EmptyMedia>
+            <EmptyTitle className="font-heading text-xl tracking-wide">Catch up</EmptyTitle>
+            <EmptyDescription>Recent captions collect here as the lecture goes on.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <StickToBottom className="relative min-h-0 flex-1 overflow-y-auto" initial="instant" resize="instant">
+          <StickToBottom.Content className="flex flex-col gap-2 px-5 pb-5">
+            {shown.map((caption, i) => (
+              <CaptionCard
+                caption={caption}
+                // Dashed Padlet yellow marks the newest segment.
+                className={i === shown.length - 1 ? "border-dashed border-highlight" : undefined}
+                key={caption.segment}
+              />
+            ))}
+          </StickToBottom.Content>
+          <ScrollToLatest />
+        </StickToBottom>
+      )}
     </aside>
   );
 }

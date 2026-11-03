@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* Padlet-inspired theme: Inter for text, Lilita One for display headings,
-   hot pink for actions, Padlet yellow for "in progress", pastel sticky notes. */
+   hot pink for actions, Padlet yellow for "in progress". */
 @theme inline {
     --font-heading: "Lilita One", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
     --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -30,11 +30,7 @@
     --color-sidebar: var(--sidebar);
     --color-highlight: var(--highlight);
     --color-success: var(--success);
-    --color-note-pink: #fbcfdc;
     --color-note-yellow: #fdeea0;
-    --color-note-green: #c9f0c4;
-    --color-note-blue: #c3e4fa;
-    --color-note-purple: #ddd0fa;
     --color-note-foreground: #111111;
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
@@ -102,4 +98,29 @@
   body {
     @apply h-full overflow-hidden overscroll-none bg-background text-foreground font-sans antialiased;
   }
+}
+
+/* Lecture video (components/lecture-video.tsx). Origins are in SVG viewBox units. */
+.lecture .lecture-bob { animation: lecture-bob 1.4s ease-in-out infinite alternate; }
+.lecture .lecture-arm { transform-origin: 462px 236px; animation: lecture-point 1.8s ease-in-out infinite alternate; }
+.lecture .lecture-eyes { transform-box: fill-box; transform-origin: center; animation: lecture-blink 4s infinite; }
+.lecture .lecture-mouth { display: none; transform-box: fill-box; transform-origin: center; }
+.lecture.talking .lecture-mouth { display: inline; animation: lecture-talk 0.22s ease-in-out infinite alternate; }
+.lecture.talking .lecture-smile { display: none; }
+.lecture .lecture-clock-hand { transform-origin: 440px 56px; animation: lecture-spin 6s linear infinite; }
+.lecture .lecture-plant { transform-origin: 35px 270px; animation: lecture-sway 2.6s ease-in-out infinite alternate; }
+.lecture .lecture-cloud { animation: lecture-drift 12s linear infinite; }
+.lecture .lecture-sparkle { transform-box: fill-box; transform-origin: center; animation: lecture-twinkle 1.6s ease-in-out infinite alternate; }
+
+@keyframes lecture-bob { to { transform: translateY(-4px); } }
+@keyframes lecture-point { from { transform: rotate(-5deg); } to { transform: rotate(7deg); } }
+@keyframes lecture-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes lecture-talk { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+@keyframes lecture-spin { to { transform: rotate(360deg); } }
+@keyframes lecture-sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes lecture-drift { from { transform: translateX(-70px); } to { transform: translateX(140px); } }
+@keyframes lecture-twinkle { from { transform: scale(0.6); opacity: 0.5; } to { transform: scale(1.1); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lecture * { animation: none !important; }
 }
