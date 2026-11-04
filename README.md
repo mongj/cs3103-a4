@@ -5,8 +5,8 @@
 
 | Name           | Student ID | Main responsibility                                                                                                                                                                                                                                                  |
 | -------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Zhang Ming Jun | A0282190H  | Browser client (revision replacement, recall UI, reconnect/offline toggle), server revision-state and history logic (accept(), missed_finals()), test infrastructure (run_demo.py, run_timeline.py), and server refinements (ping/lag handling, exception handling). |
-| Cheng Lui Leng | A0281547X  | Server-side networking, the ClientOutbox class, per-client coalescing queues, slow-client isolation, and backpressure mechanism. Also implemented the optional ASR bonus feature.                                                                                    |
+| Zhang Ming Jun | A0282190H  | Browser client (revision replacement, recall UI, reconnect/offline toggle), server revision-state and history logic (accept(), missed_finals()), test infrastructure (run_demo.py, run_timeline.py), server refinements (ping/lag handling, exception handling), ablation suite, and report writing (all sections, jointly with Lui Leng). |
+| Cheng Lui Leng | A0281547X  | Server-side networking, the ClientOutbox class, per-client coalescing queues, slow-client isolation, backpressure mechanism, optional ASR bonus feature, and report writing (all sections, jointly with Ming Jun).                                                  |
 
 
 ---
@@ -69,7 +69,7 @@ python submission_check.py
 ## Required server
 
 ```bash
-python solution_server.py --port 8765
+make server
 ```
 
 The server binds to `0.0.0.0:<port>` and is ready within a few seconds. It
@@ -82,19 +82,16 @@ the same port.
 
 ## Browser client
 
-In a second terminal, install and start the Vite dev server:
+In a second terminal:
 
 ```bash
-corepack enable
-cd client
-yarn install
-yarn dev
+make client
 ```
 
-Then open `http://127.0.0.1:8000` in a browser. The client connects automatically
-to `ws://127.0.0.1:8765`.
+This builds the React app and serves it at `http://127.0.0.1:8000`. The client
+connects automatically to `ws://127.0.0.1:8765`.
 
-> Note: `yarn dev` must stay running in the terminal while you use the browser.
+> Note: `make client` must stay running in the terminal while you use the browser.
 > If port 8000 is already in use, free it first: `lsof -ti:8000 | xargs kill -9`
 
 ---
@@ -102,6 +99,12 @@ to `ws://127.0.0.1:8765`.
 
 
 ## Public deterministic tests
+
+Activate the virtual environment first if you have not already:
+
+```bash
+source venv/bin/activate
+```
 
 Run each test at least three times (the `--runs` flag restarts the server for
 each run and reports the median).
@@ -146,7 +149,7 @@ python run_demo.py --clients 100 --duration 60 --runs 3 \
 Apply impairment to the loopback interface before running T2 (requires root):
 
 ```bash
-# example: 50 ms delay + 10 ms jitter + 1 % loss
+# example: 120 ms delay + 30 ms jitter + 3 % loss
 sudo bash network_profiles/delay_loss.sh lo
 python run_demo.py --clients 100 --duration 40 --runs 3 --output-stem t5_impaired
 sudo bash network_profiles/reset.sh lo
@@ -164,7 +167,7 @@ Other profiles in `network_profiles/`: `delay_100ms.sh`, `loss_3pct.sh`,
 Open **two** browser tabs at `http://127.0.0.1:8000`, then in a terminal:
 
 ```bash
-python caption_source.py --duration 120
+make source
 ```
 
 **What to demonstrate:**
@@ -179,7 +182,7 @@ python caption_source.py --duration 120
 4. **Disconnect / reconnect** — click "Go offline" on one tab; wait 5–10 s;
   click "Go online". The status label shows "reconnecting" then "connected";
    only missed finals appear (no duplicates).
-5. **Late join** — open a new browser tab while `caption_source.py` is running.
+5. **Late join** — open a new browser tab while `make source` is running.
   The new client receives recent context immediately and then continues with
    live updates.
 
@@ -286,7 +289,7 @@ The first run downloads the Whisper model (~150 MB for `tiny`, ~300 MB for `base
 
 ### Usage
 
-Start the server first, then run the ASR source:
+Activate the virtual environment if not already active (`source venv/bin/activate`), then start the server and run the ASR source:
 
 ```bash
 # video file (paced to real-time playback speed)
