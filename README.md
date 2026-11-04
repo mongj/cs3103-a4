@@ -279,9 +279,10 @@ brew install ffmpeg portaudio
 sudo apt install -y ffmpeg portaudio19-dev
 ```
 
-Install Python packages:
+Install Python packages (activate the virtual environment first if not already active):
 
 ```bash
+source venv/bin/activate
 pip install -r bonus_asr/requirements_asr.txt
 ```
 
