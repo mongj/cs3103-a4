@@ -1,0 +1,7 @@
+t,label,limit_mbit
+0.0,ramp 100->5000 clients,
+120,40 Mbit/s,40
+160,20 Mbit/s,20
+200,10 Mbit/s,10
+240,5 Mbit/s,5
+280,limit removed,

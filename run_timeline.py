@@ -433,6 +433,53 @@ def plot(out: Path) -> None:
             a.axvline(at, color="gray", ls=":", lw=1)
     fig.savefig(out / "timeline.png", dpi=110)
     print(f"Plot written to {out / 'timeline.png'}")
+    plt.close(fig)
+
+    # Captions read per second, stacked so provisionals visibly give way before
+    # finals, with connected clients on a second axis. The y axis is broken: the
+    # HISTORY burst after the limit is removed would otherwise flatten the rest.
+    layers = (("final_live", "finals (live)", "tab:blue"),
+              ("final_recovered", "finals (recovered via HISTORY)", "tab:purple"),
+              ("provisional_delivered", "provisionals", "tab:green"))
+    reads = [rate(key) for key, _, _ in layers]
+    totals = [sum(v for v in vals if v == v) for vals in zip(*reads)]
+    last_event = events[-1][0]
+    # Stop 2 s early: the 3 s average already blends in the first burst second.
+    calm = max(total for x, total in zip(t, totals) if x < last_event - 2)
+    peak = max(totals)
+
+    fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(13, 6.5),
+                                      gridspec_kw={"height_ratios": (1, 4), "hspace": 0.06})
+    for a in (top, bottom):
+        a.stackplot(t, *reads, labels=[label for _, label, _ in layers],
+                    colors=[color for _, _, color in layers], alpha=0.85)
+        a.grid(alpha=0.3)
+        for at, _, _ in events:
+            a.axvline(at, color="gray", ls=":", lw=1)
+    bottom.set_ylim(0, calm * 1.1)
+    top.set_ylim(max(calm * 1.1, peak * 0.3), peak * 1.05)
+    top.spines["bottom"].set_visible(False)
+    bottom.spines["top"].set_visible(False)
+    top.tick_params(bottom=False)
+    for a, y in ((top, 0), (bottom, 1)):  # diagonal break marks
+        a.plot([0, 1], [y, y], transform=a.transAxes, ls="none", marker=[(-1, -0.5), (1, 0.5)],
+               ms=12, mec="k", mew=1, clip_on=False)
+    for at, label, _ in events:
+        top.annotate(label, (at, 1.04), xycoords=("data", "axes fraction"), fontsize=9, rotation=20)
+
+    clients_ax = bottom.twinx()
+    clients_ax.plot(t, col("clients"), color="black", lw=1.5, label="connected clients")
+    clients_ax.set_ylim(0, max(col("clients")) * 1.3)
+    clients_ax.set_ylabel("connected clients")
+
+    bottom.set_ylabel("captions read / s (3 s avg)")
+    bottom.yaxis.set_label_coords(-0.06, 0.6)
+    bottom.set_xlabel("seconds since start")
+    handles, labels = bottom.get_legend_handles_labels()
+    more_handles, more_labels = clients_ax.get_legend_handles_labels()
+    bottom.legend(handles[::-1] + more_handles, labels[::-1] + more_labels, loc="upper left", fontsize=9)
+    fig.savefig(out / "reads.png", dpi=110, bbox_inches="tight")
+    print(f"Plot written to {out / 'reads.png'}")
 
 
 def main() -> None:

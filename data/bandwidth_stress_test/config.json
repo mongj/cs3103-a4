@@ -1,0 +1,15 @@
+{
+  "command": "run",
+  "start_clients": 100,
+  "clients": 5000,
+  "ramp_seconds": 90,
+  "settle_seconds": 30,
+  "rates": [
+    40,
+    20,
+    10,
+    5
+  ],
+  "step_seconds": 40,
+  "recover_seconds": 60
+}
