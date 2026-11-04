@@ -55,8 +55,10 @@ COLUMNS = [
 ]
 
 
-# Columns left blank in a second with no live captions.
-METRICS = {"fresh_pct", "fresh_final_pct", *(f"{k}_p{p}" for k in ("final", "provisional") for p in (50, 95, 99))}
+# Columns left blank when a second has no value for them: no live captions,
+# or (second 0) no sample from the sampler yet.
+METRICS = {"fresh_pct", "fresh_final_pct", *(f"{k}_p{p}" for k in ("final", "provisional") for p in (50, 95, 99)),
+           "clients", "lo_mbit", "server_cpu", "client_cpu"}
 
 
 class Stats:
@@ -282,8 +284,10 @@ def write_results(out: Path, stats: Stats, rows: dict[int, dict], schedule) -> N
     with open(out / "timeline.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS)
         w.writeheader()
-        for s in sorted(rows):
-            row = {"t": s, **rows[s], **{k: stats.counts[s][k] for k in COLUMNS if k in stats.counts[s]}}
+        # Counted seconds too, not only sampled ones: the sampler's first row is
+        # second 1, and second 0 holds the first connects.
+        for s in sorted(set(rows) | set(stats.counts)):
+            row = {"t": s, **rows.get(s, {}), **{k: stats.counts[s][k] for k in COLUMNS if k in stats.counts[s]}}
             finals = sorted(stats.latency[(s, "final")])
             provisionals = sorted(stats.latency[(s, "provisional")])
             live = len(finals) + len(provisionals)
