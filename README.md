@@ -146,10 +146,11 @@ python run_demo.py --clients 100 --duration 60 --runs 3 \
 
 ### T5 — Network impairment (tc/netem, Ubuntu only)
 
-Apply impairment to the loopback interface before running T2 (requires root):
+Apply impairment to the loopback interface before running the test (requires root).
+The parameters below (120 ms delay, ±30 ms jitter, 3 % loss) are what was used to
+produce the T5 results in `report.pdf`:
 
 ```bash
-# example: 120 ms delay + 30 ms jitter + 3 % loss
 sudo bash network_profiles/delay_loss.sh lo
 python run_demo.py --clients 100 --duration 40 --runs 3 --output-stem t5_impaired
 sudo bash network_profiles/reset.sh lo
@@ -164,11 +165,15 @@ Other profiles in `network_profiles/`: `delay_100ms.sh`, `loss_3pct.sh`,
 
 ## Mandatory deterministic application demo
 
-Open **two** browser tabs at `http://127.0.0.1:8000`, then in a terminal:
+In three separate terminals (in order):
 
 ```bash
-make source
+make server   # terminal 1
+make client   # terminal 2
+make source   # terminal 3
 ```
+
+Then open **two** browser tabs at `http://127.0.0.1:8000`.
 
 **What to demonstrate:**
 
