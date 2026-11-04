@@ -318,7 +318,3 @@ audio timing so captions appear in sync with the video.
   inherent ~4-second delay before each chunk's captions appear.
 - **Accuracy:** the `tiny` model trades accuracy for speed. Use `--model base` or
   `--model small` for better results at the cost of higher CPU usage.
-- **Language:** auto-detection works well for English; use `--language en` to
-  force it and avoid detection overhead.
-- **Microphone device:** uses the system default input device. Change it via your
-  OS sound settings if needed.
